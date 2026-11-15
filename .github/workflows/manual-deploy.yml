@@ -1,0 +1,149 @@
+name: Manual API Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Deployment environment
+        required: true
+        type: choice
+        options:
+          - staging
+          - production
+
+permissions:
+  contents: read
+
+concurrency:
+  group: api-deploy-${{ inputs.environment }}
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Migrate and deploy API
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+
+    steps:
+      - name: Validate deployment configuration
+        shell: bash
+        env:
+          DEPLOY_ENVIRONMENT: ${{ inputs.environment }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: |
+          if [ "$DEPLOY_ENVIRONMENT" = "production" ] && [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "::error::Production deployments must use the main branch."
+            exit 1
+          fi
+
+          for SECRET_NAME in DATABASE_URL VERCEL_TOKEN VERCEL_ORG_ID VERCEL_PROJECT_ID; do
+            if [ -z "${!SECRET_NAME}" ]; then
+              echo "::error::$SECRET_NAME is missing in the $DEPLOY_ENVIRONMENT environment."
+              exit 1
+            fi
+          done
+
+      - name: Checkout selected branch
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Apply Prisma migrations
+        run: npx prisma migrate deploy
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+
+      - name: Configure Vercel project
+        shell: bash
+        env:
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+        run: |
+          mkdir -p .vercel
+
+          printf '{"orgId":"%s","projectId":"%s"}' \
+            "$VERCEL_ORG_ID" \
+            "$VERCEL_PROJECT_ID" \
+            > .vercel/project.json
+
+      - name: Pull Vercel project settings
+        run: npx vercel@latest pull --yes --environment="$VERCEL_TARGET" --token="$VERCEL_TOKEN"
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+          VERCEL_TARGET: ${{ inputs.environment == 'production' && 'production' || 'preview' }}
+
+      - name: Build API
+        shell: bash
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          DEPLOY_ENVIRONMENT: ${{ inputs.environment }}
+        run: |
+          if [ "$DEPLOY_ENVIRONMENT" = "production" ]; then
+            npx vercel@latest build --prod --token="$VERCEL_TOKEN"
+          else
+            npx vercel@latest build --token="$VERCEL_TOKEN"
+          fi
+
+      - name: Deploy API to Vercel
+        id: deploy
+        shell: bash
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+          DEPLOY_ENVIRONMENT: ${{ inputs.environment }}
+        run: |
+          if [ "$DEPLOY_ENVIRONMENT" = "production" ]; then
+            DEPLOYMENT=$(npx vercel@latest deploy \
+              --prebuilt \
+              --prod \
+              --yes \
+              --token="$VERCEL_TOKEN" \
+              --json)
+          else
+            DEPLOYMENT=$(npx vercel@latest deploy \
+              --prebuilt \
+              --yes \
+              --token="$VERCEL_TOKEN" \
+              --json)
+          fi
+
+          URL=$(echo "$DEPLOYMENT" | jq -r '.url // empty')
+
+          if [ -z "$URL" ]; then
+            echo "::error::Could not retrieve the deployment URL."
+            echo "$DEPLOYMENT"
+            exit 1
+          fi
+
+          case "$URL" in
+            https://*) ;;
+            *) URL="https://$URL" ;;
+          esac
+
+          echo "url=$URL" >> "$GITHUB_OUTPUT"
+
+      - name: Deployment summary
+        shell: bash
+        env:
+          API_URL: ${{ steps.deploy.outputs.url }}
+          DEPLOY_ENVIRONMENT: ${{ inputs.environment }}
+        run: |
+          {
+            echo "## API Deployment"
+            echo ""
+            echo "- Environment: $DEPLOY_ENVIRONMENT"
+            echo "- Branch: $GITHUB_REF_NAME"
+            echo "- Commit: $GITHUB_SHA"
+            echo "- API URL: $API_URL"
+          } >> "$GITHUB_STEP_SUMMARY"
