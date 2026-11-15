@@ -45,6 +45,7 @@ model Store {
   name      String   @db.VarChar(150)
   slug      String   @unique @db.VarChar(160)
   whatsapp  String   @db.VarChar(20)
+  imageUrl  String?  @map("image_url") @db.Text
   originCep          String?  @map("origin_cep") @db.VarChar(9)
   originStreet       String?  @map("origin_street") @db.VarChar(200)
   originNumber       String?  @map("origin_number") @db.VarChar(30)

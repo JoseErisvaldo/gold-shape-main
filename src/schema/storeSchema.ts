@@ -38,6 +38,7 @@ export const CreateStoreSchema = z.object({
         .max(160)
         .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Invalid slug format"),
       whatsapp: z.string().trim().min(1, "WhatsApp is required").max(20),
+      imageUrl: z.string().trim().url().max(2048).nullable().optional(),
       originCep: z.string().trim().regex(/^\d{5}-?\d{3}$/).optional(),
       originStreet: z.string().trim().min(1).max(200).optional(),
       originNumber: z.string().trim().min(1).max(30).optional(),
@@ -72,6 +73,7 @@ export const UpdateStoreSchema = z.object({
         .min(1, "WhatsApp is required")
         .max(20)
         .optional(),
+      imageUrl: z.string().trim().url().max(2048).nullable().optional(),
       originCep: z.string().trim().regex(/^\d{5}-?\d{3}$/).optional(),
       originStreet: z.string().trim().min(1).max(200).optional(),
       originNumber: z.string().trim().min(1).max(30).optional(),

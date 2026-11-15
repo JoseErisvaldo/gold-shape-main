@@ -212,6 +212,12 @@ router.get(
   isAdminOrModerator,
   new ListStoresController().handle,
 );
+router.get(
+  "/store",
+  isAuthenticated,
+  isAdminOrModerator,
+  new ListStoresController().handle,
+);
 
 router.patch(
   "/store/:id",

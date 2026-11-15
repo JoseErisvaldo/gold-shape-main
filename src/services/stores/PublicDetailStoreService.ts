@@ -12,6 +12,7 @@ class PublicDetailStoreService {
           name: true,
           slug: true,
           whatsapp: true,
+          imageUrl: true,
         },
       });
 
