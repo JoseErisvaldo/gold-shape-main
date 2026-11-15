@@ -8,7 +8,7 @@ class PublicCheckoutStatusController {
     if (!orderNsu || orderNsu.length > 100) {
       return res.status(400).json({ error: "Identificador do pedido inválido" });
     }
-    const status = await getPublicCheckoutStatus(orderNsu);
+    const status = await getPublicCheckoutStatus(orderNsu, req.user_id);
     return res.json(status);
   }
 }

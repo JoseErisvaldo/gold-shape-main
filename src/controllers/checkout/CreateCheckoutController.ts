@@ -6,6 +6,7 @@ class CreateCheckoutController {
   async handle(req: Request, res: Response) {
     const checkout = await new CreateCheckoutService().execute(
       req.body as CreateCheckoutInput,
+      req.user_id,
     );
 
     return res.status(201).json(checkout);

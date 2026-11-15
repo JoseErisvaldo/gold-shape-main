@@ -60,6 +60,13 @@ class ListOrdersService {
           city: true,
           state: true,
           complement: true,
+          sellerCep: true,
+          sellerStreet: true,
+          sellerNumber: true,
+          sellerComplement: true,
+          sellerNeighborhood: true,
+          sellerCity: true,
+          sellerState: true,
           paidAt: true,
           createdAt: true,
           items: {

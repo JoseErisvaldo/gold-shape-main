@@ -24,8 +24,6 @@ class DashboardService {
         inactiveProducts,
         categories,
         users,
-        deliveryAreas,
-        neighborhoods,
       ] = await Promise.all([
         prismaClient.product.count({
           where: {
@@ -64,22 +62,6 @@ class DashboardService {
           },
         }),
         prismaClient.user.count(),
-        prismaClient.deliveryArea.count({
-          where: {
-            storeId: store.id,
-          },
-        }),
-        prismaClient.deliveryArea.findMany({
-          where: {
-            storeId: store.id,
-          },
-          distinct: ["city", "state", "neighborhood"],
-          select: {
-            city: true,
-            state: true,
-            neighborhood: true,
-          },
-        }),
       ]);
 
       return {
@@ -90,8 +72,6 @@ class DashboardService {
           inactiveProducts,
           categories,
           users,
-          deliveryAreas,
-          neighborhoods: neighborhoods.length,
         },
       };
     } catch (error) {

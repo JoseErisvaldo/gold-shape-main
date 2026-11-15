@@ -174,12 +174,45 @@ async function updateOrderFromProvider(order: MercadoPagoOrder) {
 }
 
 class CreateCheckoutService {
-  async execute(input: CreateCheckoutInput) {
+  async execute(input: CreateCheckoutInput, userId: string) {
+    const user = await prismaClient.user.findUnique({
+      where: { id: userId },
+      select: { id: true, name: true, email: true },
+    });
+    if (!user) throw new AppError("Usuário não encontrado", 401);
+
     const store = await prismaClient.store.findFirst({
       where: { active: true },
-      select: { id: true },
+      select: {
+        id: true,
+        originCep: true,
+        originStreet: true,
+        originNumber: true,
+        originComplement: true,
+        originNeighborhood: true,
+        originCity: true,
+        originState: true,
+      },
     });
     if (!store) throw new AppError("Loja não encontrada", 404);
+    if (
+      !store.originCep ||
+      !store.originStreet ||
+      !store.originNumber ||
+      !store.originNeighborhood ||
+      !store.originCity ||
+      !store.originState
+    ) {
+      throw new AppError(
+        "Configure o endereço de origem da loja antes de receber pedidos",
+        409,
+      );
+    }
+
+    const address = await prismaClient.customerAddress.findFirst({
+      where: { id: input.customerAddressId, userId },
+    });
+    if (!address) throw new AppError("Endereço de entrega não encontrado", 404);
 
     const method = await prismaClient.paymentMethod.findFirst({
       where: { id: input.paymentMethodId, storeId: store.id, active: true },
@@ -205,22 +238,6 @@ class CreateCheckoutService {
       throw new AppError("Um ou mais produtos não estão mais disponíveis", 400);
     }
 
-    const area = input.deliveryFeePending
-      ? null
-      : await prismaClient.deliveryArea.findFirst({
-          where: {
-            id: input.deliveryAreaId ?? "",
-            storeId: store.id,
-            active: true,
-            neighborhood: { equals: input.address.neighborhood, mode: "insensitive" },
-            city: { equals: input.address.city, mode: "insensitive" },
-            state: { equals: input.address.state, mode: "insensitive" },
-          },
-        });
-    if (!input.deliveryFeePending && !area) {
-      throw new AppError("A área de entrega selecionada não é válida", 400);
-    }
-
     const byId = new Map(input.items.map((item) => [item.variantId, item]));
     const isPix = input.payment.type === "pix";
     const items = variants.map((variant) => {
@@ -244,27 +261,36 @@ class CreateCheckoutService {
         sku: variant.sku, quantity: requestItem.quantity, unitPrice, regularUnitPrice,
       };
     });
-    const deliveryFee = area ? Math.round(Number(area.shippingFee) * 100) : 0;
+    const deliveryFee = 0;
     const amount = items.reduce((sum, item) => sum + item.unitPrice * item.quantity, deliveryFee);
     const accessToken = getAccessToken();
     const orderNsu = randomUUID();
     const order = await prismaClient.order.create({
       data: {
         storeId: store.id,
+        userId,
+        customerAddressId: address.id,
         orderNsu,
         amount,
         deliveryFee,
-        deliveryFeePending: input.deliveryFeePending,
-        customerName: input.customerName,
+        deliveryFeePending: false,
+        customerName: user.name,
         whatsapp: input.whatsapp,
         paymentMethodId: method.id,
-        cep: input.address.cep,
-        street: input.address.street,
-        number: input.address.number,
-        neighborhood: input.address.neighborhood,
-        city: input.address.city,
-        state: input.address.state,
-        complement: input.address.complement,
+        cep: address.cep,
+        street: address.street,
+        number: address.number,
+        neighborhood: address.neighborhood,
+        city: address.city,
+        state: address.state,
+        complement: address.complement,
+        sellerCep: store.originCep,
+        sellerStreet: store.originStreet,
+        sellerNumber: store.originNumber,
+        sellerComplement: store.originComplement,
+        sellerNeighborhood: store.originNeighborhood,
+        sellerCity: store.originCity,
+        sellerState: store.originState,
         items: {
           create: items.map(({ regularUnitPrice: _regularUnitPrice, ...item }) => item),
         },
@@ -288,12 +314,12 @@ class CreateCheckoutService {
           total_amount: (amount / 100).toFixed(2),
           external_reference: order.orderNsu,
           payer: {
-            email: input.email,
+            email: user.email,
             first_name:
               process.env.MP_PIX_APPROVAL_TEST_MODE === "true" &&
               input.payment.type === "pix"
                 ? "APRO"
-                : input.customerName,
+                : user.name,
             ...(input.payment.type === "card" && input.payment.identification
               ? { identification: input.payment.identification }
               : {}),
@@ -381,7 +407,7 @@ class CreateCheckoutService {
       status,
       amount: amount / 100,
       deliveryFee: deliveryFee / 100,
-      deliveryFeePending: input.deliveryFeePending,
+      deliveryFeePending: false,
       paymentMethodName: method.name,
       paymentStatus: details.mercadoPagoStatus,
       paymentStatusDetail: details.mercadoPagoStatusDetail,
@@ -394,9 +420,9 @@ class CreateCheckoutService {
   }
 }
 
-export async function getPublicCheckoutStatus(orderNsu: string) {
+export async function getPublicCheckoutStatus(orderNsu: string, userId: string) {
   const order = await prismaClient.order.findUnique({
-    where: { orderNsu },
+    where: { orderNsu, userId },
     select: {
       id: true,
       orderNsu: true,

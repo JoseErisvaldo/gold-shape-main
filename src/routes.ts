@@ -34,20 +34,13 @@ import { UpdateProductCategoriesController } from "./controllers/product/UpdateP
 import { CreateProductVariantController } from "./controllers/product/CreateProductVariantController.js";
 import { ListProductVariantsController } from "./controllers/product/ListProductVariantsController.js";
 import { UpdateProductVariantController } from "./controllers/product/UpdateProductVariantController.js";
-import { CreateDeliveryAreaController } from "./controllers/deliveryArea/CreateDeliveryAreaController.js";
 import {
-  CreateDeliveryAreaSchema,
-  ListDeliveryAreasSchema,
-  UpdateDeliveryAreaSchema,
-} from "./schema/deliveryAreaSchema.js";
-import { ListDeliveryAreasController } from "./controllers/deliveryArea/ListDeliveryAreasController.js";
-import { DetailPublicDeliveryAreaController } from "./controllers/deliveryArea/DetailPublicDeliveryAreaController.js";
-import {
-  DetailPublicDeliveryAreaSchema,
-  SearchPublicDeliveryAreasSchema,
-} from "./schema/publicDeliveryAreaSchema.js";
-import { SearchPublicDeliveryAreasController } from "./controllers/deliveryArea/SearchPublicDeliveryAreasController.js";
-import { UpdateDeliveryAreaController } from "./controllers/deliveryArea/UpdateDeliveryAreaController.js";
+  CreateCustomerAddressSchema,
+  CustomerAddressIdSchema,
+  UpdateCustomerAddressSchema,
+} from "./schema/customerAddressSchema.js";
+import { CustomerAddressController } from "./controllers/user/CustomerAddressController.js";
+import { ListCustomerOrdersController } from "./controllers/user/ListCustomerOrdersController.js";
 import { PublicListProductsController } from "./controllers/product/PublicListProductsController.js";
 import { publicRateLimiter } from "./middlewares/rateLimiter.js";
 import { PublicListCategoriesController } from "./controllers/category/PublicListCategoriesController.js";
@@ -74,6 +67,7 @@ import { MercadoPagoWebhookController } from "./controllers/checkout/MercadoPago
 const router = Router();
 const paymentMethodsController = new PaymentMethodsController();
 const acceptedCardsController = new AcceptedCardsController();
+const customerAddressController = new CustomerAddressController();
 
 router.get("/", (_, res) => {
   res.json({ status: "ok", health: "/health" });
@@ -136,13 +130,15 @@ router.post(
 );
 
 router.post(
-  "/public/checkout",
+  "/checkout",
+  isAuthenticated,
   publicRateLimiter,
   validateSchema(CreateCheckoutSchema),
   new CreateCheckoutController().handle,
 );
 router.get(
-  "/public/checkout/:orderNsu",
+  "/checkout/:orderNsu",
+  isAuthenticated,
   publicRateLimiter,
   new PublicCheckoutStatusController().handle,
 );
@@ -169,6 +165,30 @@ router.patch(
 );
 
 router.get("/me", isAuthenticated, new DetailUserController().handle);
+router.get(
+  "/me/orders",
+  isAuthenticated,
+  new ListCustomerOrdersController().handle,
+);
+router.get("/me/addresses", isAuthenticated, customerAddressController.list);
+router.post(
+  "/me/addresses",
+  isAuthenticated,
+  validateSchema(CreateCustomerAddressSchema),
+  customerAddressController.create,
+);
+router.put(
+  "/me/addresses/:id",
+  isAuthenticated,
+  validateSchema(UpdateCustomerAddressSchema),
+  customerAddressController.update,
+);
+router.delete(
+  "/me/addresses/:id",
+  isAuthenticated,
+  validateSchema(CustomerAddressIdSchema),
+  customerAddressController.delete,
+);
 
 router.post(
   "/users",
@@ -285,44 +305,6 @@ router.patch(
   isAdminOrModerator,
   validateSchema(UpdateProductVariantSchema),
   new UpdateProductVariantController().handle,
-);
-
-router.post(
-  "/delivery-areas",
-  isAuthenticated,
-  isAdminOrModerator,
-  validateSchema(CreateDeliveryAreaSchema),
-  new CreateDeliveryAreaController().handle,
-);
-
-router.get(
-  "/delivery-areas",
-  isAuthenticated,
-  isAdminOrModerator,
-  validateSchema(ListDeliveryAreasSchema),
-  new ListDeliveryAreasController().handle,
-);
-
-router.get(
-  "/public/delivery-areas",
-  publicRateLimiter,
-  validateSchema(SearchPublicDeliveryAreasSchema),
-  new SearchPublicDeliveryAreasController().handle,
-);
-
-router.get(
-  "/public/delivery-areas/:id",
-  publicRateLimiter,
-  validateSchema(DetailPublicDeliveryAreaSchema),
-  new DetailPublicDeliveryAreaController().handle,
-);
-
-router.patch(
-  "/delivery-areas/:id",
-  isAuthenticated,
-  isAdminOrModerator,
-  validateSchema(UpdateDeliveryAreaSchema),
-  new UpdateDeliveryAreaController().handle,
 );
 
 router.get(

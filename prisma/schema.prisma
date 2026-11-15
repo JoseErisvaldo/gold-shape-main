@@ -34,6 +34,9 @@ model User {
   role      UserRole @default(USUARIO)
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
 
+  addresses CustomerAddress[]
+  orders    Order[]
+
   @@map("users")
 }
 
@@ -42,6 +45,13 @@ model Store {
   name      String   @db.VarChar(150)
   slug      String   @unique @db.VarChar(160)
   whatsapp  String   @db.VarChar(20)
+  originCep          String?  @map("origin_cep") @db.VarChar(9)
+  originStreet       String?  @map("origin_street") @db.VarChar(200)
+  originNumber       String?  @map("origin_number") @db.VarChar(30)
+  originComplement   String?  @map("origin_complement") @db.VarChar(120)
+  originNeighborhood String?  @map("origin_neighborhood") @db.VarChar(120)
+  originCity         String?  @map("origin_city") @db.VarChar(120)
+  originState        String?  @map("origin_state") @db.Char(2)
   active    Boolean  @default(true)
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz
@@ -138,9 +148,32 @@ model DeliveryArea {
   @@map("delivery_areas")
 }
 
+model CustomerAddress {
+  id           String   @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  userId       String   @map("user_id") @db.Uuid
+  label        String   @db.VarChar(60)
+  cep          String   @db.VarChar(9)
+  street       String   @db.VarChar(200)
+  number       String   @db.VarChar(30)
+  complement   String?  @db.VarChar(120)
+  neighborhood String   @db.VarChar(120)
+  city         String   @db.VarChar(120)
+  state        String   @db.Char(2)
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+
+  user   User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  orders Order[]
+
+  @@index([userId, createdAt])
+  @@map("customer_addresses")
+}
+
 model Order {
   id                      String      @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   storeId                 String      @map("store_id") @db.Uuid
+  userId                  String?     @map("user_id") @db.Uuid
+  customerAddressId       String?     @map("customer_address_id") @db.Uuid
   orderNsu                String      @unique @map("order_nsu") @db.VarChar(100)
   status                  OrderStatus @default(PENDING)
   amount                  Int
@@ -165,11 +198,20 @@ model Order {
   city                    String      @db.VarChar(120)
   state                   String      @db.Char(2)
   complement              String?     @db.VarChar(120)
+  sellerCep               String?     @map("seller_cep") @db.VarChar(9)
+  sellerStreet            String?     @map("seller_street") @db.VarChar(200)
+  sellerNumber            String?     @map("seller_number") @db.VarChar(30)
+  sellerComplement        String?     @map("seller_complement") @db.VarChar(120)
+  sellerNeighborhood      String?     @map("seller_neighborhood") @db.VarChar(120)
+  sellerCity              String?     @map("seller_city") @db.VarChar(120)
+  sellerState             String?     @map("seller_state") @db.Char(2)
   paidAt                  DateTime?   @map("paid_at") @db.Timestamptz(6)
   createdAt               DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt               DateTime    @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   store         Store          @relation(fields: [storeId], references: [id], onDelete: Restrict)
+  user          User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
+  customerAddress CustomerAddress? @relation(fields: [customerAddressId], references: [id], onDelete: SetNull)
   paymentMethod PaymentMethod? @relation(fields: [paymentMethodId], references: [id], onDelete: SetNull)
   items         OrderItem[]
 
