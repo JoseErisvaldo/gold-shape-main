@@ -17,6 +17,8 @@ const mercadoPagoOrderSchema = z.object({
       date_of_expiration: z.string().optional(),
       payment_method: z.object({
         id: z.string().optional(),
+        type: z.string().optional(),
+        installments: z.number().int().optional(),
         qr_code: z.string().optional(),
         qr_code_base64: z.string().optional(),
         ticket_url: z.string().optional(),
@@ -73,6 +75,9 @@ function getPaymentDetails(order: MercadoPagoOrder) {
   return {
     mercadoPagoOrderId: String(order.id),
     mercadoPagoPaymentId: payment?.id == null ? null : String(payment.id),
+    mercadoPagoPaymentMethodId: method?.id ?? null,
+    mercadoPagoPaymentType: method?.type ?? null,
+    mercadoPagoInstallments: method?.installments ?? null,
     mercadoPagoStatus: order.status ?? payment?.status ?? "pending",
     mercadoPagoStatusDetail: order.status_detail ?? payment?.status_detail ?? null,
     pixQrCode: method?.qr_code ?? null,

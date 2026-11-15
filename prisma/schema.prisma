@@ -185,6 +185,9 @@ model Order {
   cashReceived            Int?        @map("cash_received")
   mercadoPagoOrderId      String?     @unique @map("mercado_pago_order_id") @db.VarChar(100)
   mercadoPagoPaymentId    String?     @map("mercado_pago_payment_id") @db.VarChar(100)
+  mercadoPagoPaymentMethodId String?  @map("mercado_pago_payment_method_id") @db.VarChar(80)
+  mercadoPagoPaymentType  String?     @map("mercado_pago_payment_type") @db.VarChar(40)
+  mercadoPagoInstallments Int?        @map("mercado_pago_installments")
   mercadoPagoStatus       String?     @map("mercado_pago_status") @db.VarChar(80)
   mercadoPagoStatusDetail String?     @map("mercado_pago_status_detail") @db.VarChar(120)
   pixQrCode               String?     @map("pix_qr_code") @db.Text
