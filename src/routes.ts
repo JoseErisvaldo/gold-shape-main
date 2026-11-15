@@ -68,6 +68,8 @@ import { PaymentMethodsController } from "./controllers/paymentMethods/PaymentMe
 import { AcceptedCardsController } from "./controllers/paymentMethods/AcceptedCardsController.js";
 import { GetPublicCartPricesController } from "./controllers/product/GetPublicCartPricesController.js";
 import { PublicCartPricesSchema } from "./schema/publicCartPricesSchema.js";
+import { PublicCheckoutStatusController } from "./controllers/checkout/PublicCheckoutStatusController.js";
+import { MercadoPagoWebhookController } from "./controllers/checkout/MercadoPagoWebhookController.js";
 
 const router = Router();
 const paymentMethodsController = new PaymentMethodsController();
@@ -138,6 +140,16 @@ router.post(
   publicRateLimiter,
   validateSchema(CreateCheckoutSchema),
   new CreateCheckoutController().handle,
+);
+router.get(
+  "/public/checkout/:orderNsu",
+  publicRateLimiter,
+  new PublicCheckoutStatusController().handle,
+);
+router.post(
+  "/public/mercado-pago/webhook",
+  publicRateLimiter,
+  new MercadoPagoWebhookController().handle,
 );
 
 router.get(

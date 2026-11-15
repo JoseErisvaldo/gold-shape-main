@@ -10,7 +10,11 @@ class PaymentMethodsService {
       });
       if (!store) return [];
       return prismaClient.paymentMethod.findMany({
-        where: { storeId: store.id, ...(publicOnly ? { active: true } : {}) },
+        where: {
+          storeId: store.id,
+          NOT: { name: { equals: "Dinheiro", mode: "insensitive" } },
+          ...(publicOnly ? { active: true } : {}),
+        },
         select: { id: true, name: true, ...(publicOnly ? {} : { active: true }) },
         orderBy: { createdAt: "asc" },
       });
@@ -21,6 +25,13 @@ class PaymentMethodsService {
 
   async updateActive(id: string, active: boolean) {
     try {
+      const method = await prismaClient.paymentMethod.findUnique({
+        where: { id },
+        select: { name: true },
+      });
+      if (method?.name.toLocaleLowerCase("pt-BR") === "dinheiro") {
+        throw new AppError("Pagamento em dinheiro não está disponível", 400);
+      }
       const result = await prismaClient.$transaction(async (transaction) => {
         const updated = await transaction.paymentMethod.updateMany({
           where: { id, store: { active: true } },

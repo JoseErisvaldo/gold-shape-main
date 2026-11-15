@@ -1,4 +1,5 @@
-import type {} from "./@types/express/index.js";
+/// <reference path="./@types/express/index.d.ts" />
+import type {} from "./@types/express/index";
 import express, { NextFunction, Request, Response } from "express";
 import cors from "cors";
 import "dotenv/config";
@@ -8,6 +9,13 @@ import {
   publicRateLimiter,
 } from "./middlewares/rateLimiter.js";
 import { AppError } from "./utils/app-error.js";
+
+if (
+  process.env.MP_PIX_APPROVAL_TEST_MODE === "true" &&
+  process.env.NODE_ENV === "production"
+) {
+  throw new Error("MP_PIX_APPROVAL_TEST_MODE não pode ser habilitado em produção");
+}
 
 const app = express();
 

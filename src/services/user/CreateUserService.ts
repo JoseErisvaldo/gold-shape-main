@@ -27,19 +27,17 @@ class CreateUserService {
           name,
           email,
           password: passwordHash,
+          role: "USUARIO",
+        },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          createdAt: true,
         },
       });
-
-      const safeUser = {
-        ...user,
-        id: String(user.id),
-        createdAt:
-          user.createdAt instanceof Date
-            ? user.createdAt.toISOString()
-            : user.createdAt,
-      };
-
-      return safeUser;
+      return { ...user, createdAt: user.createdAt.toISOString() };
     } catch (error) {
       throw new Error(
         "Erro ao criar usuário: " +

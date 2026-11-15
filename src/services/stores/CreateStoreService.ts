@@ -36,7 +36,7 @@ class CreateStoreService {
       data: {
         ...data,
         paymentMethods: {
-          create: ["PIX", "Cartão Débito", "Cartão Crédito", "Dinheiro"].map((name) => ({
+          create: ["PIX", "Cartão Débito", "Cartão Crédito"].map((name) => ({
             name,
             ...(!name.toLocaleLowerCase("pt-BR").includes("cartão")
               ? {}
