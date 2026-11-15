@@ -48,11 +48,16 @@ class ListOrdersService {
           whatsapp: true,
           deliveryFee: true,
           deliveryFeePending: true,
-          mercadoPagoOrderId: true,
-          mercadoPagoPaymentId: true,
-          mercadoPagoStatus: true,
-          mercadoPagoStatusDetail: true,
-          paymentMethod: { select: { name: true } },
+          mercadoPagoPayment: {
+            select: {
+              mercadoPagoOrderId: true,
+              mercadoPagoPaymentId: true,
+              mercadoPagoStatus: true,
+              mercadoPagoStatusDetail: true,
+              paidAt: true,
+              paymentMethod: { select: { name: true } },
+            },
+          },
           cep: true,
           street: true,
           number: true,
@@ -67,7 +72,6 @@ class ListOrdersService {
           sellerNeighborhood: true,
           sellerCity: true,
           sellerState: true,
-          paidAt: true,
           createdAt: true,
           items: {
             select: {
@@ -82,7 +86,20 @@ class ListOrdersService {
         }),
         prismaClient.order.count({ where }),
       ]);
-      return { orders, total, page: query.page, pageSize: query.pageSize };
+      return {
+        orders: orders.map(({ mercadoPagoPayment, ...order }) => ({
+          ...order,
+          mercadoPagoOrderId: mercadoPagoPayment?.mercadoPagoOrderId ?? null,
+          mercadoPagoPaymentId: mercadoPagoPayment?.mercadoPagoPaymentId ?? null,
+          mercadoPagoStatus: mercadoPagoPayment?.mercadoPagoStatus ?? null,
+          mercadoPagoStatusDetail: mercadoPagoPayment?.mercadoPagoStatusDetail ?? null,
+          paymentMethod: mercadoPagoPayment?.paymentMethod ?? null,
+          paidAt: mercadoPagoPayment?.paidAt ?? null,
+        })),
+        total,
+        page: query.page,
+        pageSize: query.pageSize,
+      };
     } catch {
       throw new AppError("Erro ao consultar pedidos", 500);
     }

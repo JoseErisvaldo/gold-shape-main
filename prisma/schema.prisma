@@ -179,21 +179,8 @@ model Order {
   amount                  Int
   customerName            String?     @map("customer_name") @db.VarChar(150)
   whatsapp                String?     @db.VarChar(20)
-  paymentMethodId         String?     @map("payment_method_id") @db.Uuid
   deliveryFee             Int         @default(0) @map("delivery_fee")
   deliveryFeePending      Boolean     @default(false) @map("delivery_fee_pending")
-  cashReceived            Int?        @map("cash_received")
-  mercadoPagoOrderId      String?     @unique @map("mercado_pago_order_id") @db.VarChar(100)
-  mercadoPagoPaymentId    String?     @map("mercado_pago_payment_id") @db.VarChar(100)
-  mercadoPagoPaymentMethodId String?  @map("mercado_pago_payment_method_id") @db.VarChar(80)
-  mercadoPagoPaymentType  String?     @map("mercado_pago_payment_type") @db.VarChar(40)
-  mercadoPagoInstallments Int?        @map("mercado_pago_installments")
-  mercadoPagoStatus       String?     @map("mercado_pago_status") @db.VarChar(80)
-  mercadoPagoStatusDetail String?     @map("mercado_pago_status_detail") @db.VarChar(120)
-  pixQrCode               String?     @map("pix_qr_code") @db.Text
-  pixQrCodeBase64         String?     @map("pix_qr_code_base64") @db.Text
-  pixTicketUrl            String?     @map("pix_ticket_url") @db.Text
-  paymentExpiresAt        DateTime?   @map("payment_expires_at") @db.Timestamptz(6)
   cep                     String?     @db.VarChar(9)
   street                  String      @db.VarChar(200)
   number                  String      @db.VarChar(30)
@@ -208,15 +195,14 @@ model Order {
   sellerNeighborhood      String?     @map("seller_neighborhood") @db.VarChar(120)
   sellerCity              String?     @map("seller_city") @db.VarChar(120)
   sellerState             String?     @map("seller_state") @db.Char(2)
-  paidAt                  DateTime?   @map("paid_at") @db.Timestamptz(6)
   createdAt               DateTime    @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt               DateTime    @updatedAt @map("updated_at") @db.Timestamptz(6)
 
   store         Store          @relation(fields: [storeId], references: [id], onDelete: Restrict)
   user          User?          @relation(fields: [userId], references: [id], onDelete: SetNull)
   customerAddress CustomerAddress? @relation(fields: [customerAddressId], references: [id], onDelete: SetNull)
-  paymentMethod PaymentMethod? @relation(fields: [paymentMethodId], references: [id], onDelete: SetNull)
-  items         OrderItem[]
+  mercadoPagoPayment MercadoPagoPayment?
+  items              OrderItem[]
 
   @@index([storeId, status, createdAt])
   @@map("orders")
@@ -229,11 +215,36 @@ model PaymentMethod {
   active        Boolean        @default(true)
   createdAt     DateTime       @default(now()) @map("created_at") @db.Timestamptz
   store         Store          @relation(fields: [storeId], references: [id], onDelete: Cascade)
-  orders        Order[]
+  payments      MercadoPagoPayment[]
   acceptedCards AcceptedCard[]
 
   @@unique([storeId, name])
   @@map("payment_methods")
+}
+
+model MercadoPagoPayment {
+  id                         String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  orderId                    String    @unique @map("order_id") @db.Uuid
+  paymentMethodId            String?   @map("payment_method_id") @db.Uuid
+  cashReceived               Int?      @map("cash_received")
+  mercadoPagoOrderId         String?   @unique @map("mercado_pago_order_id") @db.VarChar(100)
+  mercadoPagoPaymentId       String?   @map("mercado_pago_payment_id") @db.VarChar(100)
+  mercadoPagoPaymentMethodId String?   @map("mercado_pago_payment_method_id") @db.VarChar(80)
+  mercadoPagoPaymentType     String?   @map("mercado_pago_payment_type") @db.VarChar(40)
+  mercadoPagoInstallments    Int?      @map("mercado_pago_installments")
+  mercadoPagoStatus          String?   @map("mercado_pago_status") @db.VarChar(80)
+  mercadoPagoStatusDetail    String?   @map("mercado_pago_status_detail") @db.VarChar(120)
+  pixQrCode                  String?   @map("pix_qr_code") @db.Text
+  pixQrCodeBase64            String?   @map("pix_qr_code_base64") @db.Text
+  pixTicketUrl               String?   @map("pix_ticket_url") @db.Text
+  paymentExpiresAt           DateTime? @map("payment_expires_at") @db.Timestamptz(6)
+  paidAt                     DateTime? @map("paid_at") @db.Timestamptz(6)
+
+  order         Order          @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  paymentMethod PaymentMethod? @relation(fields: [paymentMethodId], references: [id], onDelete: SetNull)
+
+  @@index([mercadoPagoStatus])
+  @@map("mercado_pago_payments")
 }
 
 model AcceptedCard {

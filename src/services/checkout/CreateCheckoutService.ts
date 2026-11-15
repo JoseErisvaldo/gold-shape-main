@@ -158,7 +158,11 @@ async function updateOrderFromProvider(order: MercadoPagoOrder) {
   }
   const current = await prismaClient.order.findUnique({
     where: { orderNsu: externalReference },
-    select: { id: true, status: true, paidAt: true },
+    select: {
+      id: true,
+      status: true,
+      mercadoPagoPayment: { select: { paidAt: true } },
+    },
   });
   if (!current) return null;
 
@@ -168,14 +172,21 @@ async function updateOrderFromProvider(order: MercadoPagoOrder) {
     ? current.status
     : nextStatus;
   const details = getPaymentDetails(order);
-  return prismaClient.order.update({
-    where: { id: current.id },
-    data: {
-      ...details,
-      status: finalStatus,
-      paidAt: finalStatus === "PAID" ? current.paidAt ?? new Date() : null,
-    },
-  });
+  const paidAt =
+    finalStatus === "PAID"
+      ? current.mercadoPagoPayment?.paidAt ?? new Date()
+      : null;
+  return prismaClient.$transaction([
+    prismaClient.order.update({
+      where: { id: current.id },
+      data: { status: finalStatus },
+    }),
+    prismaClient.mercadoPagoPayment.upsert({
+      where: { orderId: current.id },
+      create: { orderId: current.id, ...details, paidAt },
+      update: { ...details, paidAt },
+    }),
+  ]);
 }
 
 class CreateCheckoutService {
@@ -281,7 +292,9 @@ class CreateCheckoutService {
         deliveryFeePending: false,
         customerName: user.name,
         whatsapp: input.whatsapp,
-        paymentMethodId: method.id,
+        mercadoPagoPayment: {
+          create: { paymentMethodId: method.id },
+        },
         cep: address.cep,
         street: address.street,
         number: address.number,
@@ -337,7 +350,10 @@ class CreateCheckoutService {
     } catch (error) {
       await prismaClient.order.update({
         where: { id: order.id },
-        data: { status: "CANCELED", mercadoPagoStatus: "creation_failed" },
+        data: {
+          status: "CANCELED",
+          mercadoPagoPayment: { update: { mercadoPagoStatus: "creation_failed" } },
+        },
       });
       console.error("Mercado Pago order request failed", error);
       throw new AppError("Não foi possível iniciar o pagamento", 502);
@@ -349,7 +365,10 @@ class CreateCheckoutService {
     } catch (error) {
       await prismaClient.order.update({
         where: { id: order.id },
-        data: { status: "CANCELED", mercadoPagoStatus: "invalid_response" },
+        data: {
+          status: "CANCELED",
+          mercadoPagoPayment: { update: { mercadoPagoStatus: "invalid_response" } },
+        },
       });
       console.error("Mercado Pago returned invalid order JSON", error);
       throw new AppError("Não foi possível iniciar o pagamento", 502);
@@ -358,7 +377,10 @@ class CreateCheckoutService {
     if (!parsedOrder.success) {
       await prismaClient.order.update({
         where: { id: order.id },
-        data: { status: "CANCELED", mercadoPagoStatus: "creation_failed" },
+        data: {
+          status: "CANCELED",
+          mercadoPagoPayment: { update: { mercadoPagoStatus: "creation_failed" } },
+        },
       });
       const providerError = mercadoPagoErrorSchema.safeParse(providerPayload);
       console.error("Mercado Pago order creation failed", {
@@ -381,7 +403,10 @@ class CreateCheckoutService {
     if (providerOrder.external_reference !== order.orderNsu) {
       await prismaClient.order.update({
         where: { id: order.id },
-        data: { status: "CANCELED", mercadoPagoStatus: "invalid_reference" },
+        data: {
+          status: "CANCELED",
+          mercadoPagoPayment: { update: { mercadoPagoStatus: "invalid_reference" } },
+        },
       });
       throw new AppError("A resposta do pagamento não corresponde ao pedido", 502);
     }
@@ -400,9 +425,13 @@ class CreateCheckoutService {
     await prismaClient.order.update({
       where: { id: order.id },
       data: {
-        ...details,
         status,
-        paidAt: status === "PAID" ? new Date() : null,
+        mercadoPagoPayment: {
+          update: {
+            ...details,
+            paidAt: status === "PAID" ? new Date() : null,
+          },
+        },
       },
     });
 
@@ -435,13 +464,23 @@ export async function getPublicCheckoutStatus(orderNsu: string, userId: string) 
       amount: true,
       deliveryFee: true,
       deliveryFeePending: true,
-      mercadoPagoStatus: true,
-      mercadoPagoStatusDetail: true,
-      pixQrCode: true,
-      pixQrCodeBase64: true,
-      pixTicketUrl: true,
-      paymentExpiresAt: true,
-      paymentMethod: { select: { name: true } },
+      mercadoPagoPayment: {
+        select: {
+          mercadoPagoOrderId: true,
+          mercadoPagoPaymentId: true,
+          mercadoPagoPaymentMethodId: true,
+          mercadoPagoPaymentType: true,
+          mercadoPagoInstallments: true,
+          mercadoPagoStatus: true,
+          mercadoPagoStatusDetail: true,
+          pixQrCode: true,
+          pixQrCodeBase64: true,
+          pixTicketUrl: true,
+          paymentExpiresAt: true,
+          paidAt: true,
+          paymentMethod: { select: { name: true } },
+        },
+      },
       items: {
         select: {
           productName: true,
@@ -454,14 +493,18 @@ export async function getPublicCheckoutStatus(orderNsu: string, userId: string) 
     },
   });
   if (!order) throw new AppError("Pedido não encontrado", 404);
+  const { mercadoPagoPayment, ...orderData } = order;
   return {
-    ...order,
+    ...orderData,
     amount: order.amount / 100,
     deliveryFee: order.deliveryFee / 100,
-    paymentMethodName: order.paymentMethod?.name ?? null,
-    paymentStatus: order.mercadoPagoStatus,
-    paymentStatusDetail: order.mercadoPagoStatusDetail,
-    paymentExpiresAt: order.paymentExpiresAt?.toISOString() ?? null,
+    paymentMethodName: mercadoPagoPayment?.paymentMethod?.name ?? null,
+    paymentStatus: mercadoPagoPayment?.mercadoPagoStatus ?? null,
+    paymentStatusDetail: mercadoPagoPayment?.mercadoPagoStatusDetail ?? null,
+    pixQrCode: mercadoPagoPayment?.pixQrCode ?? null,
+    pixQrCodeBase64: mercadoPagoPayment?.pixQrCodeBase64 ?? null,
+    pixTicketUrl: mercadoPagoPayment?.pixTicketUrl ?? null,
+    paymentExpiresAt: mercadoPagoPayment?.paymentExpiresAt?.toISOString() ?? null,
     items: order.items.map((item) => ({
       ...item,
       unitPrice: item.unitPrice / 100,
