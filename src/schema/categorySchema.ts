@@ -11,6 +11,7 @@ export const CreateCategorySchema = z.object({
         .max(120)
         .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, "Invalid slug format"),
       description: z.string().trim().max(500).optional(),
+      imageUrl: z.string().url().optional(),
     })
     .strict(),
 });
@@ -32,6 +33,7 @@ export const UpdateCategorySchema = z.object({
         .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/)
         .optional(),
       description: z.string().trim().max(500).nullable().optional(),
+      imageUrl: z.string().url().nullable().optional(),
       active: z.boolean().optional(),
     })
     .strict()

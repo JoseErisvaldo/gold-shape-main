@@ -40,6 +40,7 @@ class PublicListCategoriesService {
           name: true,
           slug: true,
           description: true,
+          imageUrl: true,
           active: true,
         },
         orderBy: {
